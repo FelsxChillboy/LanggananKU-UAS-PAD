@@ -97,14 +97,17 @@ class NotifierService:
             icon.stop()
             self._stop_flag.set()
 
-        menu = pystray.Menu(
-            pystray.MenuItem("Buka LanggananKu", on_open, default=True),
-            pystray.MenuItem("Keluar", on_quit),
-        )
-        self._tray_icon = pystray.Icon("langgananku", _buat_ikon_tray(), "LanggananKu", menu)
-        t = threading.Thread(target=self._tray_icon.run, daemon=True)
-        t.start()
-        logger.debug("System tray icon started")
+        try:
+            menu = pystray.Menu(
+                pystray.MenuItem("Buka LanggananKu", on_open, default=True),
+                pystray.MenuItem("Keluar", on_quit),
+            )
+            self._tray_icon = pystray.Icon("langgananku", _buat_ikon_tray(), "LanggananKu", menu)
+            t = threading.Thread(target=self._tray_icon.run, daemon=True)
+            t.start()
+            logger.debug("System tray icon started")
+        except Exception:
+            logger.exception("Failed to start tray icon")
 
     def stop(self):
         self._stop_flag.set()

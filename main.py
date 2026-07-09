@@ -60,7 +60,13 @@ class LangganankuApp(tk.Tk):
         self._bind_global_shortcuts()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         logger.info("Application started")
+        self.after(100, self._show_window)
         self.show_login()
+
+    def _show_window(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def _bind_global_shortcuts(self):
         self.bind("<Control-n>", lambda e: self._shortcut_form())
