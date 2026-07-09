@@ -1,6 +1,9 @@
+import os
+import sys
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import logging
+import traceback
 
 from models import database as db
 from controllers.auth_controller import AuthController
@@ -15,26 +18,47 @@ from views.profile_view import ProfileFrame
 from notifier import NotifierService
 import config
 
+log_dir = config.BASE_DIR
+log_file = os.path.join(log_dir, "langgananku.log")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(config.LOG_PATH, encoding="utf-8"),
+        logging.FileHandler(log_file, encoding="utf-8"),
         logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger(__name__)
 
 
+def _global_excepthook(exc_type, exc_value, exc_tb):
+    msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    logger.critical("Unhandled exception:\n%s", msg)
+    crash_file = os.path.join(log_dir, "crash.txt")
+    with open(crash_file, "w", encoding="utf-8") as f:
+        f.write(msg)
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("LanggananKu - Fatal Error",
+                             f"Terjadi error tak terduga:\n\n{exc_value}\n\n"
+                             f"Detail error disimpan di:\n{crash_file}")
+    except Exception:
+        pass
+
+
+sys.excepthook = _global_excepthook
+
+
 class LangganankuApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        config.load_theme()
+
         self.title(config.APP_TITLE)
         self.geometry(config.APP_GEOMETRY)
         self.minsize(config.APP_MIN_WIDTH, config.APP_MIN_HEIGHT)
         self.configure(bg=config.BG)
-
-        config.load_theme()
 
         self.current_user = None
         self._current_view = None
@@ -47,6 +71,10 @@ class LangganankuApp(tk.Tk):
         self.container = tk.Frame(self, bg=config.BG)
         self.container.pack(fill=tk.BOTH, expand=True)
 
+        self._setup_styles()
+        self._build_status_bar()
+        self._bind_global_shortcuts()
+
         self.notifier = NotifierService(
             get_current_user_id_callback=lambda: self.current_user["id"] if self.current_user else None,
             on_open_window=self._restore_window,
@@ -54,19 +82,15 @@ class LangganankuApp(tk.Tk):
         self.notifier.start_background_checks()
         self.notifier.start_tray_icon()
 
-        self._setup_styles()
-        self._build_status_bar()
-
-        self._bind_global_shortcuts()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
-        logger.info("Application started")
-        self.after(100, self._show_window)
-        self.show_login()
 
-    def _show_window(self):
+        self.update_idletasks()
         self.deiconify()
         self.lift()
         self.focus_force()
+
+        logger.info("Application started")
+        self.show_login()
 
     def _bind_global_shortcuts(self):
         self.bind("<Control-n>", lambda e: self._shortcut_form())
@@ -227,9 +251,16 @@ class LangganankuApp(tk.Tk):
 
 
 def main():
-    db.init_db()
-    app = LangganankuApp()
-    app.mainloop()
+    try:
+        db.init_db()
+        app = LangganankuApp()
+        app.mainloop()
+    except Exception:
+        exc = traceback.format_exc()
+        crash_file = os.path.join(log_dir if "log_dir" in dir() else config.BASE_DIR, "crash.txt")
+        with open(crash_file, "w", encoding="utf-8") as f:
+            f.write(exc)
+        logger.critical("Startup crash:\n%s", exc)
 
 
 if __name__ == "__main__":
